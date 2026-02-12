@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>AI CRM - Review Analysis</title>
+</head>
+
+<body>
+    <h2>📝 Product Review Analyzer</h2>
+
+    <textarea id="reviewInput" rows="5" cols="60" placeholder="Enter customer review..."></textarea><br><br>
+
+    <button id="analyzeBtn">Analyze</button>
+
+    <h3>Sentiment Result:</h3>
+    <div id="sentimentResult"></div>
+
+    <h3>Business Action:</h3>
+    <div id="action-result"></div>
+
+    <p id="status"></p>
+
+    <script>
+        async function analyzeSentiment(review) {
+            const HF_MODEL = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment-latest";
+            const token = localStorage.getItem("hf_token"); // Hugging Face token stored locally
+
+            if (!token) {
+                throw new Error("Missing Hugging Face token in localStorage.");
+            }
+
+            try {
+                const response = await fetch(HF_MODEL, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer " + token,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        inputs: review,
+                        options: { wait_for_model: true }
+                    })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(`HF API Error: ${response.status} - ${text}`);
+                }
+
+                const data = await response.json();
+
+                // data is an array of predictions
+                // pick the highest confidence
+                const result = data[0].sort((a, b) => b.score - a.score)[0];
+
+                // Convert model labels to POSITIVE / NEGATIVE / NEUTRAL
+                let label;
+                if (result.label === "LABEL_0") label = "NEGATIVE";
+                else if (result.label === "LABEL_1") label = "NEUTRAL";
+                else label = "POSITIVE";
+
+                const confidence = result.score;
+
+                return { label, confidence };
+
+            } catch (err) {
+                console.error(err);
+                throw err;
+            }
+        }
+
+        // Usage example:
+        document.getElementById("analyzeBtn").addEventListener("click", async () => {
+            const review = document.getElementById("reviewInput").value.trim();
+            const statusEl = document.getElementById("status");
+            const sentimentEl = document.getElementById("sentimentResult");
+
+            statusEl.textContent = "Analyzing...";
+            try {
+                const result = await analyzeSentiment(review);
+                sentimentEl.textContent = `${result.label} (${result.confidence.toFixed(2)})`;
+                statusEl.textContent = "Done ✅";
+
+                // Here you can call your determineBusinessAction function
+                const decision = determineBusinessAction(result.confidence, result.label);
+                document.getElementById("action-result").innerHTML = `
+            <div style="background:${decision.uiColor};color:white;padding:15px;">
+                <p>${decision.uiMessage}</p>
+                <button>${decision.button}</button>
+            </div>
+        `;
+
+            } catch (err) {
+                statusEl.textContent = "Error: " + err.message;
+            }
+        });
+
+    </script>
+</body>
+
+</html>

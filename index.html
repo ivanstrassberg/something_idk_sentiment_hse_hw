@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Setup - AI CRM</title>
+</head>
+
+<body>
+    <h2>🔐 Setup Credentials</h2>
+
+    <label>Hugging Face API Token:</label><br>
+    <input type="password" id="hfToken" size="50"><br><br>
+
+    <label>Google Apps Script Web App URL (/exec):</label><br>
+    <input type="text" id="gasUrl" size="50"><br><br>
+
+    <button id="saveBtn">Save</button>
+
+    <p id="status"></p>
+
+    <br><br>
+    <a href="review.html">➡ Go to Review Page</a>
+
+    <script>
+        const LS_HF = "hf_token";
+        const LS_GAS = "gas_url";
+
+        document.getElementById("saveBtn").addEventListener("click", () => {
+            const token = document.getElementById("hfToken").value.trim();
+            const gasUrl = document.getElementById("gasUrl").value.trim();
+
+            if (!token || !gasUrl) {
+                document.getElementById("status").textContent = "Both fields required.";
+                return;
+            }
+
+            localStorage.setItem(LS_HF, token);
+            localStorage.setItem(LS_GAS, gasUrl);
+
+            document.getElementById("status").textContent = "Saved successfully ✅";
+        });
+
+        window.onload = () => {
+            const savedToken = localStorage.getItem(LS_HF);
+            const savedGas = localStorage.getItem(LS_GAS);
+            if (savedToken) document.getElementById("hfToken").value = savedToken;
+            if (savedGas) document.getElementById("gasUrl").value = savedGas;
+        };
+    </script>
+</body>
+
+</html>
