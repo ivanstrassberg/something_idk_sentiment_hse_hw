@@ -2,98 +2,212 @@
 <html>
 
 <head>
-    <title>AI CRM - Review Analysis</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Automatic Firefighter CRM</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Segoe UI;
+            background: linear-gradient(135deg, #4f46e5, #9333ea);
+            display: flex;
+            justify-content: center;
+            padding: 50px 20px;
+        }
+
+        .app {
+            background: white;
+            width: 700px;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            resize: none;
+        }
+
+        button {
+            margin-top: 15px;
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            background: #4f46e5;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .card {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            color: white;
+        }
+    </style>
 </head>
 
 <body>
-    <h2>📝 Product Review Analyzer</h2>
+    <div class="app">
+        <h2>🧠 Automatic Firefighter</h2>
 
-    <textarea id="reviewInput" rows="5" cols="60" placeholder="Enter customer review..."></textarea><br><br>
+        <textarea id="reviewInput" rows="4" placeholder="Paste customer review..."></textarea>
+        <button id="analyzeBtn">Analyze</button>
 
-    <button id="analyzeBtn">Analyze</button>
-
-    <h3>Sentiment Result:</h3>
-    <div id="sentimentResult"></div>
-
-    <h3>Business Action:</h3>
-    <div id="action-result"></div>
-
-    <p id="status"></p>
+        <div id="sentimentResult"></div>
+        <div id="action-result"></div>
+        <p id="status"></p>
+    </div>
 
     <script>
-        async function analyzeSentiment(review) {
-            const HF_MODEL = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment-latest";
-            const token = localStorage.getItem("hf_token"); // Hugging Face token stored locally
 
-            if (!token) {
-                throw new Error("Missing Hugging Face token in localStorage.");
-            }
+        const HF_MODEL = "https://router.huggingface.co/hf-inference/models/nlptown/bert-base-multilingual-uncased-sentiment";
+        const LS_GAS = "gas_url";
 
-            try {
-                const response = await fetch(HF_MODEL, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": "Bearer " + token,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        inputs: review,
-                        options: { wait_for_model: true }
-                    })
-                });
-
-                if (!response.ok) {
-                    const text = await response.text();
-                    throw new Error(`HF API Error: ${response.status} - ${text}`);
-                }
-
-                const data = await response.json();
-
-                // data is an array of predictions
-                // pick the highest confidence
-                const result = data[0].sort((a, b) => b.score - a.score)[0];
-
-                // Convert model labels to POSITIVE / NEGATIVE / NEUTRAL
-                let label;
-                if (result.label === "LABEL_0") label = "NEGATIVE";
-                else if (result.label === "LABEL_1") label = "NEUTRAL";
-                else label = "POSITIVE";
-
-                const confidence = result.score;
-
-                return { label, confidence };
-
-            } catch (err) {
-                console.error(err);
-                throw err;
-            }
+        if (!localStorage.getItem("user_id")) {
+            localStorage.setItem("user_id", "user_" + crypto.randomUUID());
         }
 
-        // Usage example:
+        function getUserId() {
+            return localStorage.getItem("user_id");
+        }
+
+        function determineBusinessAction(stars) {
+            if (stars <= 2) return "OFFER_COUPON";
+            if (stars === 3) return "REQUEST_FEEDBACK";
+            return "ASK_REFERRAL";
+        }
+
+        async function analyzeSentiment(review) {
+
+            const token = localStorage.getItem("hf_token");
+
+            const response = await fetch(HF_MODEL, {
+                method: "POST",
+                headers: {
+                    "Authorization": "Bearer " + token,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    inputs: review,
+                    options: { wait_for_model: true }
+                })
+            });
+
+            const data = await response.json();
+            const best = data[0].sort((a, b) => b.score - a.score)[0];
+
+            return {
+                stars: parseInt(best.label),
+                confidence: best.score
+            };
+        }
+
+        async function logEvent(payload) {
+
+            const gasUrl = localStorage.getItem(LS_GAS);
+            if (!gasUrl) return;
+
+            payload.user_id = getUserId();
+            payload.event_id = "event_" + crypto.randomUUID();
+
+            const form = new URLSearchParams();
+            Object.keys(payload).forEach(k => form.set(k, payload[k]));
+
+            await fetch(gasUrl, {
+                method: "POST",
+                body: form
+            });
+        }
+
         document.getElementById("analyzeBtn").addEventListener("click", async () => {
+
             const review = document.getElementById("reviewInput").value.trim();
-            const statusEl = document.getElementById("status");
-            const sentimentEl = document.getElementById("sentimentResult");
+            if (!review) return;
 
-            statusEl.textContent = "Analyzing...";
-            try {
-                const result = await analyzeSentiment(review);
-                sentimentEl.textContent = `${result.label} (${result.confidence.toFixed(2)})`;
-                statusEl.textContent = "Done ✅";
+            document.getElementById("status").textContent = "Analyzing...";
 
-                // Here you can call your determineBusinessAction function
-                const decision = determineBusinessAction(result.confidence, result.label);
-                document.getElementById("action-result").innerHTML = `
-            <div style="background:${decision.uiColor};color:white;padding:15px;">
-                <p>${decision.uiMessage}</p>
-                <button>${decision.button}</button>
-            </div>
-        `;
+            const result = await analyzeSentiment(review);
+            const action = determineBusinessAction(result.stars);
 
-            } catch (err) {
-                statusEl.textContent = "Error: " + err.message;
-            }
+            localStorage.setItem("current_review", review);
+            localStorage.setItem("current_stars", result.stars);
+            localStorage.setItem("current_confidence", result.confidence);
+            localStorage.setItem("current_action", action);
+
+            document.getElementById("sentimentResult").innerHTML =
+                `<strong>${result.stars} ⭐</strong> (confidence ${result.confidence.toFixed(2)})`;
+
+            document.getElementById("action-result").innerHTML =
+                `<div class="card" style="background:${action === "OFFER_COUPON" ? "#ef4444" : action === "REQUEST_FEEDBACK" ? "#6b7280" : "#10b981"}">
+Action: ${action}
+<button onclick="handleAction()">Proceed</button>
+</div>`;
+
+            await logEvent({
+                event_type: "AUTO_DECISION",
+                review: review,
+                stars: result.stars,
+                confidence: result.confidence,
+                action: action
+            });
+
+            document.getElementById("status").textContent = "Logged.";
         });
+
+        async function handleAction() {
+
+            const review = localStorage.getItem("current_review");
+            const stars = localStorage.getItem("current_stars");
+            const confidence = localStorage.getItem("current_confidence");
+            const action = localStorage.getItem("current_action");
+
+            if (action === "OFFER_COUPON") {
+
+                await logEvent({
+                    event_type: "COUPON_CLAIMED",
+                    review,
+                    stars,
+                    confidence,
+                    action,
+                    coupon_claimed: "YES"
+                });
+
+                alert("Coupon claimed.");
+            }
+
+            if (action === "ASK_REFERRAL") {
+
+                await logEvent({
+                    event_type: "REFERRAL_CLICKED",
+                    review,
+                    stars,
+                    confidence,
+                    action,
+                    referral_clicked: "YES"
+                });
+
+                window.open("https://example.com/referral", "_blank");
+            }
+
+            if (action === "REQUEST_FEEDBACK") {
+
+                await logEvent({
+                    event_type: "SURVEY_OPENED",
+                    review,
+                    stars,
+                    confidence,
+                    action,
+                    survey_opened: "YES"
+                });
+
+                window.open("survey.html", "_blank");
+            }
+        }
 
     </script>
 </body>
