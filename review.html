@@ -1,62 +1,90 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Automatic Firefighter CRM</title>
     <style>
+        /* Fonts & Reset */
         body {
             margin: 0;
-            font-family: Segoe UI;
-            background: linear-gradient(135deg, #4f46e5, #9333ea);
-            display: flex;
-            justify-content: center;
-            padding: 50px 20px;
+            font-family: 'Inter', sans-serif;
+            background: #f4f6f8;
+            color: #333;
+        }
+
+        h1,
+        h3 {
+            text-align: center;
+            margin-bottom: 0.25em;
+        }
+
+        h3 {
+            color: #555;
+            font-weight: 400;
         }
 
         .app {
-            background: white;
-            width: 700px;
-            border-radius: 16px;
+            max-width: 720px;
+            margin: 50px auto;
             padding: 30px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
         }
 
         textarea {
             width: 100%;
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
             resize: none;
+            font-size: 14px;
         }
 
         button {
-            margin-top: 15px;
             width: 100%;
-            padding: 12px;
-            border-radius: 10px;
+            padding: 14px;
+            margin-top: 15px;
             border: none;
+            border-radius: 8px;
             background: #4f46e5;
             color: white;
-            font-weight: bold;
+            font-weight: 600;
             cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #3730a3;
         }
 
         .card {
             margin-top: 20px;
             padding: 20px;
-            border-radius: 12px;
+            border-radius: 10px;
             color: white;
+            text-align: center;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-size: 14px;
+            text-align: center;
+            color: #555;
         }
     </style>
 </head>
 
 <body>
-    <div class="app">
-        <h2>🧠 Automatic Firefighter</h2>
 
-        <textarea id="reviewInput" rows="4" placeholder="Paste customer review..."></textarea>
-        <button id="analyzeBtn">Analyze</button>
+    <div class="app">
+        <h1>Automatic Firefighter</h1>
+        <h3>Customer Sentiment Analysis & Automated Business Action</h3>
+
+        <textarea id="reviewInput" rows="4" placeholder="Paste customer review here..."></textarea>
+        <button id="analyzeBtn">Analyze & Trigger Action</button>
 
         <div id="sentimentResult"></div>
         <div id="action-result"></div>
@@ -64,17 +92,11 @@
     </div>
 
     <script>
-
         const HF_MODEL = "https://router.huggingface.co/hf-inference/models/nlptown/bert-base-multilingual-uncased-sentiment";
         const LS_GAS = "gas_url";
 
-        if (!localStorage.getItem("user_id")) {
-            localStorage.setItem("user_id", "user_" + crypto.randomUUID());
-        }
-
-        function getUserId() {
-            return localStorage.getItem("user_id");
-        }
+        if (!localStorage.getItem("user_id")) localStorage.setItem("user_id", "user_" + crypto.randomUUID());
+        function getUserId() { return localStorage.getItem("user_id"); }
 
         function determineBusinessAction(stars) {
             if (stars <= 2) return "OFFER_COUPON";
@@ -83,52 +105,30 @@
         }
 
         async function analyzeSentiment(review) {
-
             const token = localStorage.getItem("hf_token");
-
             const response = await fetch(HF_MODEL, {
                 method: "POST",
-                headers: {
-                    "Authorization": "Bearer " + token,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    inputs: review,
-                    options: { wait_for_model: true }
-                })
+                headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+                body: JSON.stringify({ inputs: review, options: { wait_for_model: true } })
             });
-
             const data = await response.json();
             const best = data[0].sort((a, b) => b.score - a.score)[0];
-
-            return {
-                stars: parseInt(best.label),
-                confidence: best.score
-            };
+            return { stars: parseInt(best.label), confidence: best.score };
         }
 
         async function logEvent(payload) {
-
             const gasUrl = localStorage.getItem(LS_GAS);
             if (!gasUrl) return;
-
             payload.user_id = getUserId();
             payload.event_id = "event_" + crypto.randomUUID();
-
             const form = new URLSearchParams();
             Object.keys(payload).forEach(k => form.set(k, payload[k]));
-
-            await fetch(gasUrl, {
-                method: "POST",
-                body: form
-            });
+            await fetch(gasUrl, { method: "POST", body: form });
         }
 
         document.getElementById("analyzeBtn").addEventListener("click", async () => {
-
             const review = document.getElementById("reviewInput").value.trim();
             if (!review) return;
-
             document.getElementById("status").textContent = "Analyzing...";
 
             const result = await analyzeSentiment(review);
@@ -139,76 +139,44 @@
             localStorage.setItem("current_confidence", result.confidence);
             localStorage.setItem("current_action", action);
 
-            document.getElementById("sentimentResult").innerHTML =
-                `<strong>${result.stars} ⭐</strong> (confidence ${result.confidence.toFixed(2)})`;
+            document.getElementById("sentimentResult").innerHTML = `<strong>${result.stars} ⭐</strong> (confidence ${result.confidence.toFixed(2)})`;
 
-            document.getElementById("action-result").innerHTML =
-                `<div class="card" style="background:${action === "OFFER_COUPON" ? "#ef4444" : action === "REQUEST_FEEDBACK" ? "#6b7280" : "#10b981"}">
-Action: ${action}
-<button onclick="handleAction()">Proceed</button>
-</div>`;
+            const bgColor = action === "OFFER_COUPON" ? "#ef4444" : action === "REQUEST_FEEDBACK" ? "#6b7280" : "#10b981";
+            document.getElementById("action-result").innerHTML = `<div class="card" style="background:${bgColor}">
+        <p><strong>Action:</strong> ${action}</p>
+        <button onclick="handleAction()">Proceed</button>
+    </div>`;
 
             await logEvent({
                 event_type: "AUTO_DECISION",
-                review: review,
+                review,
                 stars: result.stars,
                 confidence: result.confidence,
-                action: action
+                action
             });
 
-            document.getElementById("status").textContent = "Logged.";
+            document.getElementById("status").textContent = "Decision executed & logged.";
         });
 
         async function handleAction() {
-
             const review = localStorage.getItem("current_review");
             const stars = localStorage.getItem("current_stars");
             const confidence = localStorage.getItem("current_confidence");
             const action = localStorage.getItem("current_action");
 
             if (action === "OFFER_COUPON") {
-
-                await logEvent({
-                    event_type: "COUPON_CLAIMED",
-                    review,
-                    stars,
-                    confidence,
-                    action,
-                    coupon_claimed: "YES"
-                });
-
-                alert("Coupon claimed.");
+                await logEvent({ event_type: "COUPON_CLAIMED", review, stars, confidence, action, coupon_claimed: "YES" });
+                alert("Coupon claimed!");
             }
-
             if (action === "ASK_REFERRAL") {
-
-                await logEvent({
-                    event_type: "REFERRAL_CLICKED",
-                    review,
-                    stars,
-                    confidence,
-                    action,
-                    referral_clicked: "YES"
-                });
-
-                window.open("https://example.com/referral", "_blank");
+                await logEvent({ event_type: "REFERRAL_CLICKED", review, stars, confidence, action, referral_clicked: "YES" });
+                alert("Thanks for referring a friend!");
             }
-
             if (action === "REQUEST_FEEDBACK") {
-
-                await logEvent({
-                    event_type: "SURVEY_OPENED",
-                    review,
-                    stars,
-                    confidence,
-                    action,
-                    survey_opened: "YES"
-                });
-
+                await logEvent({ event_type: "SURVEY_OPENED", review, stars, confidence, action, survey_opened: "YES" });
                 window.open("survey.html", "_blank");
             }
         }
-
     </script>
 </body>
 

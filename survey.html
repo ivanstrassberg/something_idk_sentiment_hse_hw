@@ -1,32 +1,75 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Customer Survey</title>
+    <title>Customer Survey | Automatic Firefighter</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: #f4f6f8;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            padding: 50px 20px;
+        }
+
+        .app {
+            max-width: 600px;
+            width: 100%;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 8px;
+            background: #4f46e5;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #3730a3;
+        }
+    </style>
 </head>
 
 <body>
-
-    <h2>Customer Feedback</h2>
-
-    <label>Rate your experience (1-5)</label>
-    <input type="number" id="rating" min="1" max="5"><br><br>
-
-    <label>Feedback</label><br>
-    <textarea id="feedback" rows="4"></textarea><br><br>
-
-    <button onclick="submitSurvey()">Submit</button>
+    <div class="app">
+        <h1>Customer Survey</h1>
+        <h3>Your feedback matters!</h3>
+        <label>Rate your experience (1-5)</label>
+        <input type="number" id="rating" min="1" max="5">
+        <label>Feedback</label>
+        <textarea id="feedback" rows="4"></textarea>
+        <button onclick="submitSurvey()">Submit</button>
+    </div>
 
     <script>
-
         const LS_GAS = "gas_url";
-
+        function getUserId() { return localStorage.getItem("user_id"); }
         async function submitSurvey() {
-
             const gasUrl = localStorage.getItem(LS_GAS);
-            const userId = localStorage.getItem("user_id");
-
+            const userId = getUserId();
             const form = new URLSearchParams();
             form.set("event_id", "event_" + crypto.randomUUID());
             form.set("user_id", userId);
@@ -34,14 +77,10 @@
             form.set("survey_submitted", "YES");
             form.set("survey_rating", document.getElementById("rating").value);
             form.set("survey_feedback", document.getElementById("feedback").value);
-
             await fetch(gasUrl, { method: "POST", body: form });
-
-            alert("Thank you!");
+            alert("Thank you! Your feedback has been logged.");
         }
-
     </script>
-
 </body>
 
 </html>
